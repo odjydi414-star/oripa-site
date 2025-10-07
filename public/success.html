@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>🎉 抽選結果</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 40px; }
+    #result { margin-top: 40px; font-size: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🎉 抽選結果</h1>
+  <div id="result">抽選中...</div>
+
+  <script>
+    async function draw() {
+      const res = await fetch("/paid-draw");
+      const card = await res.json();
+      document.getElementById("result").innerHTML = `
+        <h2>${card.name}</h2>
+        <p>タイプ: ${card.type}</p>
+      `;
+    }
+    draw();
+  </script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>🎴 悠大のオリパ抽選 🎴</title>
+  <style>
+    body {
+      text-align: center;
+      background-color: #fff;
+      transition: background-color 0.5s ease;
+      font-family: sans-serif;
+      padding: 40px;
+    }
+    button {
+      font-size: 20px;
+      padding: 10px 20px;
+      margin-top: 20px;
+    }
+    #status {
+      font-size: 18px;
+      color: #888;
+      margin-top: 10px;
+    }
+    #result {
+      font-size: 24px;
+      margin-top: 20px;
+    }
+    img.spin {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    body.flash {
+      background-color: #ffe600;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎴 悠大のオリパ抽選 🎴</h1>
+  <p>1回300円で抽選できます！</p>
+  <button onclick="buy()">購入して抽選する</button>
+  <p id="status"></p>
+  <p id="result"></p>
+  <img id="cardImage" src="" alt="抽選結果" style="width:300px; margin-top:20px; display:none;">
+  <audio id="hitSound" src="sounds/hit.mp3"></audio>
+  <audio id="missSound" src="sounds/miss.mp3"></audio>
+
+  <script>
+    const hitImages = [
+      "images/hit1.png",
+      "images/hit2.png",
+      "images/hit3.png"
+    ];
+    const missImages = [
+      "images/miss1.png",
+      "images/miss2.png",
+      "images/miss3.png"
+    ];
+
+    async function buy() {
+      const res = await fetch("/create-checkout-session", { method: "POST" });
+      const data = await res.json();
+      window.location.href = data.url;
+    }
+
+    // Stripe決済後に呼び出す抽選処理（success.html から使う）
+    async function drawPaid() {
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
+      const img = document.getElementById("cardImage");
+      const hitSound = document.getElementById("hitSound");
+      const missSound = document.getElementById("missSound");
+
+      status.textContent = "抽選中...";
+      result.textContent = "";
+      img.style.display = "block";
+      img.classList.add("spin");
+      document.body.classList.remove("flash");
+
+      const allImages = [...hitImages, ...missImages];
+      let index = 0;
+      const interval = setInterval(() => {
+        img.src = allImages[index % allImages.length];
+        index++;
+      }, 100);
+
+      setTimeout(async () => {
+        clearInterval(interval);
+
+        const res = await fetch("/paid-draw");
+        const data = await res.json();
+
+        result.textContent = `結果：${data.name}（${data.type}）`;
+        img.classList.remove("spin");
+
+        if (data.type === "当たり") {
+          const randomHit = hitImages[Math.floor(Math.random() * hitImages.length)];
+          img.src = randomHit;
+          document.body.classList.add("flash");
+          hitSound.play().catch(e => console.log("当たり音エラー:", e));
+          setTimeout(() => {
+            document.body.classList.remove("flash");
+          }, 2000);
+        } else {
+          const randomMiss = missImages[Math.floor(Math.random() * missImages.length)];
+          img.src = randomMiss;
+          missSound.play().catch(e => console.log("ハズレ音エラー:", e));
+        }
+
+        status.textContent = "";
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

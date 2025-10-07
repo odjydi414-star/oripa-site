@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>🔧 管理画面</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    table { margin: auto; border-collapse: collapse; display: none; }
+    th, td { border: 1px solid #ccc; padding: 8px; }
+    input[type="number"], input[type="text"] { width: 80px; }
+    button { margin-top: 10px; padding: 6px 12px; }
+    #loginBox { margin-bottom: 20px; }
+    #historyTable { margin-top: 40px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>🔧 抽選カード管理</h1>
+
+  <div id="loginBox">
+    <input type="password" id="adminPass" placeholder="パスワードを入力">
+    <button onclick="login()">ログイン</button>
+  </div>
+
+  <table id="cardTable">
+    <thead>
+      <tr><th>名前</th><th>タイプ</th><th>確率</th><th>在庫</th><th>操作</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button id="saveBtn" onclick="save()" style="display:none;">保存する</button>
+
+  <h2 style="display:none;" id="addTitle">➕ カード追加</h2>
+  <div id="addCardBox" style="display:none;">
+    <input id="newName" placeholder="名前">
+    <select id="newType">
+      <option value="当たり">当たり</option>
+      <option value="ハズレ">ハズレ</option>
+    </select>
+    <input id="newChance" type="number" placeholder="確率" min="0">
+    <input id="newStock" type="number" placeholder="在庫" min="0">
+    <button onclick="addCard()">追加する</button>
+  </div>
+
+  <h2 id="historyTitle" style="display:none;">📜 抽選履歴</h2>
+  <table id="historyTable">
+    <thead>
+      <tr><th>名前</th><th>カード</th><th>タイプ</th><th>時間</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    let token = "";
+
+    async function login() {
+      const pass = document.getElementById("adminPass").value;
+      const res = await fetch("/admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pass })
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        token = result.token;
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("cardTable").style.display = "table";
+        document.getElementById("saveBtn").style.display = "inline-block";
+        document.getElementById("addCardBox").style.display = "block";
+        document.getElementById("addTitle").style.display = "block";
+        document.getElementById("historyTable").style.display = "table";
+        document.getElementById("historyTitle").style.display = "block";
+        loadCards();
+        loadHistory();
+      } else {
+        alert("パスワードが違います！");
+      }
+    }
+
+    async function loadCards() {
+      const res = await fetch("/cards");
+      const cards = await res.json();
+      const tbody = document.querySelector("#cardTable tbody");
+      tbody.innerHTML = "";
+
+      cards.forEach((card, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${card.name}</td>
+          <td>${card.type}</td>
+          <td><input type="number" value="${card.chance}" min="0" data-index="${index}" data-field="chance"></td>
+          <td><input type="number" value="${card.stock}" min="0" data-index="${index}" data-field="stock"></td>
+          <td><button onclick="removeCard(${index})">削除</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function save() {
+      const inputs = document.querySelectorAll("input[data-index]");
+      const updated = [];
+
+      inputs.forEach(input => {
+        const index = parseInt(input.dataset.index);
+        const field = input.dataset.field;
+        const value = parseInt(input.value);
+
+        if (!updated[index]) updated[index] = { index };
+        updated[index][field] = value;
+      });
+
+      await fetch("/update-cards", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(updated)
+      });
+
+      alert("保存しました！");
+      loadCards();
+    }
+
+    async function addCard() {
+      const name = document.getElementById("newName").value;
+      const type = document.getElementById("newType").value;
+      const chance = parseInt(document.getElementById("newChance").value);
+      const stock = parseInt(document.getElementById("newStock").value);
+
+      if (!name || isNaN(chance) || isNaN(stock)) return alert("名前・確率・在庫を入力してね！");
+
+      await fetch("/add-card", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, type, chance, stock })
+      });
+
+      document.getElementById("newName").value = "";
+      document.getElementById("newChance").value = "";
+      document.getElementById("newStock").value = "";
+      loadCards();
+    }
+
+    async function removeCard(index) {
+      if (!confirm("このカードを削除しますか？")) return;
+
+      await fetch("/delete-card", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ index })
+      });
+
+      loadCards();
+    }
+
+    async function loadHistory() {
+      const res = await fetch("/history");
+      const history = await res.json();
+      const tbody = document.querySelector("#historyTable tbody");
+      tbody.innerHTML = "";
+
+      history.slice().reverse().forEach(entry => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${entry.user}</td>
+          <td>${entry.name}</td>
+          <td>${entry.type}</td>
+          <td>${new Date(entry.time).toLocaleString()}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+  </script>
+</body>
+</html>
